@@ -4,6 +4,7 @@ use rocket::{
     Request,
 };
 
+//Dummy function
 pub struct BasicAuth {
     pub username: String,
     pub password: String,
