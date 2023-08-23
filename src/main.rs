@@ -9,10 +9,10 @@ mod models;
 mod schema;
 
 use diesel::prelude::*;
-use models::Rustacean;
+use models::{NewRustacean, Rustacean};
 use rocket::{
     response::status,
-    serde::json::{json, Value},
+    serde::json::{json, Json, Value},
 };
 use schema::rustaceans;
 
@@ -35,9 +35,17 @@ async fn get_users(_auth: BasicAuth, db: DbConn) -> Value {
     .await
 }
 
-#[post("/users", format = "json")]
-fn add_user(_auth: BasicAuth, _db: DbConn) -> Value {
-    json!({"get":"gol"})
+#[post("/users", format = "json", data = "<new_rustacean>")]
+async fn add_user(_auth: BasicAuth, db: DbConn, new_rustacean: Json<NewRustacean>) -> Value {
+    db.run(|c| {
+        let result = diesel::insert_into(rustaceans::table)
+            .values(new_rustacean.into_inner())
+            .execute(c)
+            .expect("Failed to add new Rustacean");
+
+        json!(result)
+    })
+    .await
 }
 
 #[put("/users/<id>")]

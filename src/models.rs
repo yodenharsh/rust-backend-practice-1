@@ -1,3 +1,5 @@
+use super::schema::rustaceans;
+
 use diesel::prelude::*;
 use rocket::serde;
 
@@ -7,4 +9,11 @@ pub struct Rustacean {
     pub name: String,
     pub email: String,
     pub created_at: String,
+}
+
+#[derive(serde::Deserialize, Insertable)]
+#[table_name = "rustaceans"]
+pub struct NewRustacean {
+    pub name: String,
+    pub email: String,
 }
