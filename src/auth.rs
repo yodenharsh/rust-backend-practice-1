@@ -3,6 +3,7 @@ use rocket::{
     request::{FromRequest, Outcome},
     Request,
 };
+extern crate base64;
 
 //Dummy function
 pub struct BasicAuth {
@@ -26,6 +27,7 @@ impl BasicAuth {
     }
 
     fn from_base64_encoded(base64_string: &str) -> Option<BasicAuth> {
+        #[allow(deprecated)]
         let decoded = base64::decode(base64_string).ok()?;
         let decoded_str = String::from_utf8(decoded).ok()?;
         let split = decoded_str.split(":").collect::<Vec<_>>();

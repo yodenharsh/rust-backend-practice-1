@@ -18,8 +18,6 @@ use schema::rustaceans;
 
 use crate::auth::BasicAuth;
 
-extern crate base64;
-
 #[database("sqlite")]
 struct DbConn(diesel::SqliteConnection);
 
