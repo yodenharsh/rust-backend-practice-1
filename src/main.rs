@@ -46,14 +46,42 @@ async fn add_user(_auth: BasicAuth, db: DbConn, new_rustacean: Json<NewRustacean
     .await
 }
 
-#[put("/users/<id>")]
-fn put_user(id: i32, _auth: BasicAuth, _db: DbConn) -> Value {
-    json!({"id": id})
+#[get("/users/<id>")]
+async fn get_user(id: i32, _auth: BasicAuth, db: DbConn) -> Value {
+    db.run(move |c| {
+        let result = rustaceans::table
+            .find(id)
+            .get_result::<Rustacean>(c)
+            .expect("Failed to fetch Rustacean");
+        json!(result)
+    })
+    .await
 }
 
-#[delete("/users")]
-fn delete_users(_auth: BasicAuth, _db: DbConn) -> status::NoContent {
-    status::NoContent
+#[put("/users/<id>", format = "json", data = "<rustacean>")]
+async fn put_user(id: i32, _auth: BasicAuth, db: DbConn, rustacean: Json<Rustacean>) -> Value {
+    db.run(move |c| {
+        let result = diesel::update(rustaceans::table.find(id))
+            .set((
+                rustaceans::email.eq(rustacean.email.to_owned()),
+                rustaceans::name.eq(rustacean.name.to_owned()),
+            ))
+            .execute(c)
+            .expect("Failed to update rustacean");
+        json!(result)
+    })
+    .await
+}
+
+#[delete("/users/<id>")]
+async fn delete_user(_auth: BasicAuth, db: DbConn, id: i32) -> status::NoContent {
+    db.run(move |c| {
+        diesel::delete(rustaceans::table.find(id))
+            .execute(c)
+            .expect("Couldn't delete user");
+        status::NoContent
+    })
+    .await
 }
 
 #[catch(404)]
@@ -64,7 +92,10 @@ fn not_found() -> Value {
 #[rocket::main]
 async fn main() {
     let _ = rocket::build()
-        .mount("/", routes![get_users, put_user, add_user, delete_users])
+        .mount(
+            "/",
+            routes![get_users, put_user, add_user, delete_user, get_user],
+        )
         .register("/", catchers![not_found])
         .attach(DbConn::fairing())
         .launch()
