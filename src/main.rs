@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate rocket;
+
 extern crate diesel;
 #[macro_use]
 extern crate rocket_sync_db_pools;
@@ -11,7 +12,8 @@ mod schema;
 
 use models::{NewRustacean, Rustacean};
 use rocket::{
-    response::status,
+    http::Status,
+    response::status::{self, Custom},
     serde::json::{json, Json, Value},
 };
 
@@ -21,49 +23,64 @@ use crate::{auth::BasicAuth, repositories::UserRepository};
 struct DbConn(diesel::SqliteConnection);
 
 #[get("/users")]
-async fn get_users(_auth: BasicAuth, db: DbConn) -> Value {
+async fn get_users(_auth: BasicAuth, db: DbConn) -> Result<Value, Custom<Value>> {
     db.run(|c| {
-        let result = UserRepository::find_all(c, 100).expect("Failed to read");
-        json!(result)
+        UserRepository::find_all(c, 100)
+            .map(|user| json!(user))
+            .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
     })
     .await
 }
 
 #[post("/users", format = "json", data = "<new_rustacean>")]
-async fn add_user(_auth: BasicAuth, db: DbConn, new_rustacean: Json<NewRustacean>) -> Value {
+async fn add_user(
+    _auth: BasicAuth,
+    db: DbConn,
+    new_rustacean: Json<NewRustacean>,
+) -> Result<Value, Custom<Value>> {
     db.run(|c| {
-        let result = UserRepository::create(c, new_rustacean.into_inner())
-            .expect("Failed to add new Rustacean");
-
-        json!(result)
+        UserRepository::create(c, new_rustacean.into_inner())
+            .map(|user| json!(user))
+            .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
     })
     .await
 }
 
 #[get("/users/<id>")]
-async fn get_user(id: i32, _auth: BasicAuth, db: DbConn) -> Value {
+async fn get_user(id: i32, _auth: BasicAuth, db: DbConn) -> Result<Value, Custom<Value>> {
     db.run(move |c| {
-        let result = UserRepository::find_one(c, id).expect("Failed to fetch Rustacean");
-        json!(result)
+        UserRepository::find_one(c, id)
+            .map(|user| json!(user))
+            .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
     })
     .await
 }
 
 #[put("/users/<id>", format = "json", data = "<rustacean>")]
-async fn put_user(id: i32, _auth: BasicAuth, db: DbConn, rustacean: Json<Rustacean>) -> Value {
+async fn put_user(
+    id: i32,
+    _auth: BasicAuth,
+    db: DbConn,
+    rustacean: Json<Rustacean>,
+) -> Result<Value, Custom<Value>> {
     db.run(move |c| {
-        let result = UserRepository::update_or_save_one(c, id, rustacean.into_inner())
-            .expect("Failed to update rustacean");
-        json!(result)
+        UserRepository::update_or_save_one(c, id, rustacean.into_inner())
+            .map(|user| json!(user))
+            .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
     })
     .await
 }
 
 #[delete("/users/<id>")]
-async fn delete_user(_auth: BasicAuth, db: DbConn, id: i32) -> status::NoContent {
+async fn delete_user(
+    _auth: BasicAuth,
+    db: DbConn,
+    id: i32,
+) -> Result<status::NoContent, Custom<Value>> {
     db.run(move |c| {
-        UserRepository::delete_one(c, id).expect("Couldn't delete user");
-        status::NoContent
+        UserRepository::delete_one(c, id)
+            .map(|_| status::NoContent)
+            .map_err(|e| Custom(Status::InternalServerError, json!(e.to_string())))
     })
     .await
 }
