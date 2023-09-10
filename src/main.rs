@@ -6,17 +6,16 @@ extern crate rocket_sync_db_pools;
 
 mod auth;
 mod models;
+mod repositories;
 mod schema;
 
-use diesel::prelude::*;
 use models::{NewRustacean, Rustacean};
 use rocket::{
     response::status,
     serde::json::{json, Json, Value},
 };
-use schema::rustaceans;
 
-use crate::auth::BasicAuth;
+use crate::{auth::BasicAuth, repositories::UserRepository};
 
 #[database("sqlite")]
 struct DbConn(diesel::SqliteConnection);
@@ -24,10 +23,7 @@ struct DbConn(diesel::SqliteConnection);
 #[get("/users")]
 async fn get_users(_auth: BasicAuth, db: DbConn) -> Value {
     db.run(|c| {
-        let result = rustaceans::table
-            .limit(100)
-            .load::<Rustacean>(c)
-            .expect("Failed to read");
+        let result = UserRepository::find_all(c, 100).expect("Failed to read");
         json!(result)
     })
     .await
@@ -36,9 +32,7 @@ async fn get_users(_auth: BasicAuth, db: DbConn) -> Value {
 #[post("/users", format = "json", data = "<new_rustacean>")]
 async fn add_user(_auth: BasicAuth, db: DbConn, new_rustacean: Json<NewRustacean>) -> Value {
     db.run(|c| {
-        let result = diesel::insert_into(rustaceans::table)
-            .values(new_rustacean.into_inner())
-            .execute(c)
+        let result = UserRepository::create(c, new_rustacean.into_inner())
             .expect("Failed to add new Rustacean");
 
         json!(result)
@@ -49,10 +43,7 @@ async fn add_user(_auth: BasicAuth, db: DbConn, new_rustacean: Json<NewRustacean
 #[get("/users/<id>")]
 async fn get_user(id: i32, _auth: BasicAuth, db: DbConn) -> Value {
     db.run(move |c| {
-        let result = rustaceans::table
-            .find(id)
-            .get_result::<Rustacean>(c)
-            .expect("Failed to fetch Rustacean");
+        let result = UserRepository::find_one(c, id).expect("Failed to fetch Rustacean");
         json!(result)
     })
     .await
@@ -61,12 +52,7 @@ async fn get_user(id: i32, _auth: BasicAuth, db: DbConn) -> Value {
 #[put("/users/<id>", format = "json", data = "<rustacean>")]
 async fn put_user(id: i32, _auth: BasicAuth, db: DbConn, rustacean: Json<Rustacean>) -> Value {
     db.run(move |c| {
-        let result = diesel::update(rustaceans::table.find(id))
-            .set((
-                rustaceans::email.eq(rustacean.email.to_owned()),
-                rustaceans::name.eq(rustacean.name.to_owned()),
-            ))
-            .execute(c)
+        let result = UserRepository::update_or_save_one(c, id, rustacean.into_inner())
             .expect("Failed to update rustacean");
         json!(result)
     })
@@ -76,9 +62,7 @@ async fn put_user(id: i32, _auth: BasicAuth, db: DbConn, rustacean: Json<Rustace
 #[delete("/users/<id>")]
 async fn delete_user(_auth: BasicAuth, db: DbConn, id: i32) -> status::NoContent {
     db.run(move |c| {
-        diesel::delete(rustaceans::table.find(id))
-            .execute(c)
-            .expect("Couldn't delete user");
+        UserRepository::delete_one(c, id).expect("Couldn't delete user");
         status::NoContent
     })
     .await
